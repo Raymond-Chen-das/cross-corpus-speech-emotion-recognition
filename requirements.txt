@@ -1,0 +1,34 @@
+# 核心
+numpy>=1.24,<2.0
+pandas>=2.0,<3.0
+scikit-learn>=1.3,<2.0
+joblib>=1.3
+
+# 音訊處理
+librosa>=0.10,<1.0
+soundfile>=0.12
+audiomentations>=0.33
+
+# 視覺化（繁中友善，不使用 matplotlib）
+plotly>=5.17,<7.0
+kaleido>=0.2.1
+
+# 深度學習（CPU 版本，本地端用）
+# pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0,<3.0
+torchaudio>=2.0,<3.0
+transformers>=4.30,<5.0
+
+# 傳統 ML
+xgboost>=1.7,<3.0
+
+# 工具
+tqdm>=4.65
+jupyter>=1.0
+ipykernel>=6.25
+
+# 降維視覺化
+umap-learn>=0.5
+
+# Demo
+gradio>=4.0,<7.0

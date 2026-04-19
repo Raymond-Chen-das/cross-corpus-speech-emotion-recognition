@@ -1,0 +1,4 @@
+Model,In-corpus Acc,Cross-corpus Acc,Acc Drop,In-corpus F1(m),Cross-corpus F1(m),F1(m) Drop
+CNN,0.5859,0.2916,0.2943,0.5834,0.2450,0.3384
+LSTM,0.4944,0.2753,0.2191,0.4905,0.2397,0.2508
+WAV2VEC,0.7389,0.5216,0.2173,0.7378,0.4863,0.2515

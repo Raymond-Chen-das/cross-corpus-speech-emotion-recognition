@@ -1,0 +1,74 @@
+# ============================================================
+#  SER Project — .gitignore
+# ============================================================
+
+# --- 大型資料檔（版權、檔案過大）---
+data/raw/
+data/processed/
+data/features/
+data/embeddings/
+
+# --- 模型權重（過大，需另行下載）---
+models/checkpoints/
+
+# --- 內部工作記錄（不公開）---
+docs/personal_notes.md
+docs/LOCAL_WORK_SUMMARY.md
+CLAUDE.md
+.claude/
+presentation/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# --- 虛擬環境 ---
+venv/
+env/
+.env
+.venv
+ENV/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- 系統 ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 測試與覆蓋率 ---
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ============================================================
+#  保留（刻意不排除）
+# ============================================================
+# demo/samples/*.wav — 小型保險樣本，供 Demo 直接執行
+# results/figures/   — 圖表輸出（HTML/PNG）
+# data/metadata.csv  — 主索引，無版權問題，方便複現
