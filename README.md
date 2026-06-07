@@ -1,53 +1,73 @@
-# 語音情緒辨識（Speech Emotion Recognition）
+# 語音情緒辨識：特徵表徵與模型架構的跨語料庫遷移能力比較
 
-> 跨語料庫遷移能力研究：Pre-trained Speech Model vs. 傳統特徵方法
+> Speech Emotion Recognition — A controlled comparison of feature representation vs. model architecture, under speaker-independent and cross-corpus evaluation.
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-orange)
-![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-yellow)
-![Gradio](https://img.shields.io/badge/Demo-Gradio-purple)
+![Model](https://img.shields.io/badge/🤗%20Model-wav2vec2--base--ser-yellow)
+![Demo](https://img.shields.io/badge/🤗%20Demo-HuggingFace%20Spaces-yellow)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
----
-
-## 專案概述
-
-本專案系統性地比較六種機器學習／深度學習方法，在四個英語語音情緒資料集（共 11,318 筆、121 位說話者）上進行六類情緒辨識，並以 **Leave-One-Corpus-Out（LOCO）** 評估各模型的跨語料庫泛化能力。
-
-**核心研究問題：** 特徵表徵能力（Feature Representation）對情緒辨識準確率的影響，是否大於模型架構本身？
-
-**關鍵結論：** Fine-tuned **wav2vec 2.0** 在 5-fold 交叉驗證中達到 **73.9% 準確率**，LOCO 跨語料庫平均達 **52.2%**，均大幅優於傳統 MFCC 特徵方法（~28%）。
+**線上 Demo**：https://huggingface.co/spaces/RaymondChendas/speech-emotion-recognition
+　|　**模型**：https://huggingface.co/RaymondChendas/wav2vec2-base-ser
 
 ---
 
-## 即時 Demo
+## TL;DR
 
-```bash
-cd demo
-python app.py
-# 開啟瀏覽器：http://127.0.0.1:7860
-```
+本研究在四個英語語音情緒資料集（11,318 筆、121 位說話者）上，用**控制變因**的方式回答一個問題：**讓辨識變準的關鍵，是特徵表徵，還是模型架構？**
 
-介面支援**上傳音訊檔**與**即時麥克風錄音**，輸出包含情緒類別、信心分數、機率分布圖與 Mel-Spectrogram 視覺化。
-
-> 預錄保險樣本（`demo/samples/*.wav`）取自 TESS 資料集，採 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) 授權，僅供非商業展示用途。詳見 [LICENSE](LICENSE)。
+- **特徵 > 模型**：固定 MFCC 特徵時，四個模型（SVM / RF / XGBoost / Bi-LSTM）準確率落在 46.5%–49.4%，差距不到 3%；**換更複雜的模型幾乎沒用**。改變的若是特徵（MFCC → Mel-spectrogram → wav2vec 預訓練），準確率才從 ~49% 一路躍升到 **73.9%**。
+- **評估方法決定可信度**：採用**說話者獨立**的 StratifiedGroupKFold（防止聲紋洩漏），並以 **Leave-One-Corpus-Out（LOCO）** 測量對全新錄音環境的泛化。多數公開 SER 結果在這兩點上是寬鬆的。
+- **預訓練特徵更耐跨域**：跨語料庫時所有模型都大幅下滑，但 wav2vec 下滑最少（-21.7%，仍有 52.2%），約為 CNN（29.2%）的 1.8 倍。
+- **異常會被追查，而不是被接受**：wav2vec 在 CREMA-D 跨語料庫僅 29.1%，本研究診斷出原因（訓練資料量縮減 + domain shift），而非歸因於 overfitting。
 
 ---
 
-## 關鍵結果
+## 研究問題與動機
 
-### In-Corpus（說話者獨立 5-fold 交叉驗證）
+在 SER 文獻中，研究者通常**同時**更換特徵與模型，因此難以判斷準確率的提升究竟來自何者。這讓「要改善系統該優先投入在哪裡」這個實務問題缺乏明確答案。
+
+本研究的做法是**隔離變因**：在**相同資料、相同評估框架**下，只改變「特徵」與「模型」，系統性比較三種特徵表徵 × 六種分類方法，直接量化兩者各自的貢獻。
+
+---
+
+## 評估設計：本研究的方法論核心
+
+準確率數字本身不難看，難的是讓它**可信**。本研究刻意在兩個常被忽略的地方加嚴。
+
+### ① 說話者獨立——StratifiedGroupKFold
+
+若同一位說話者的錄音同時出現在訓練集與測試集，模型可以靠「認得這個人的聲音」猜對情緒，而非真正學到情緒特徵——分數會虛高且不可信。
+
+本研究使用 `StratifiedGroupKFold（K=5, group=speaker_id, stratify=emotion）`，確保**同一說話者的所有錄音只出現在同一個 fold**，測試時面對的都是模型沒聽過的人。這是衡量真實泛化的前提。
+
+### ② 跨語料庫泛化——Leave-One-Corpus-Out (LOCO)
+
+說話者獨立仍無法回答「換到完全不同的錄音環境還能用嗎」。LOCO 以三個資料集訓練、第四個**完全沒見過**的資料集測試，四組輪流取平均，模擬系統真實部署時面對的陌生人與陌生環境。
+
+> In-corpus 是基準線；LOCO 才是模型能否落地的真正考驗。
+
+---
+
+## 主要結果
+
+### In-corpus（說話者獨立 5-fold 交叉驗證）
 
 | 模型 | 特徵類型 | 準確率 | F1 Macro |
 |------|----------|--------|----------|
 | SVM | MFCC 統計特徵 | 49.2% | 48.9% |
-| RandomForest | MFCC 統計特徵 | 46.5% | 45.3% |
+| Random Forest | MFCC 統計特徵 | 46.5% | 45.3% |
 | XGBoost | MFCC 統計特徵 | 48.7% | 48.1% |
-| CNN | Mel-spectrogram | 58.6% | 58.3% |
 | Bi-LSTM + Attention | MFCC 時序 | 49.4% | 49.1% |
-| **wav2vec 2.0** | **Pre-trained embedding** | **73.9%** | **73.8%** |
+| CNN | Mel-spectrogram | 58.6% | 58.3% |
+| **wav2vec 2.0** | **預訓練 embedding** | **73.9%** | **73.8%** |
 
-### LOCO 跨語料庫泛化（zero-shot cross-corpus）
+*6 類情緒，隨機猜測基準 16.7%。MFCC 下四個模型差距僅 2.9%；換特徵才帶來大幅躍升。*
+
+### In-corpus vs 跨語料庫（LOCO）
+
+![In-corpus vs 跨語料庫 F1（macro）](results/figures/11_in_vs_cross_corpus.png)
 
 | 模型 | RAVDESS | CREMA-D | TESS | SAVEE | **平均** |
 |------|---------|---------|------|-------|---------|
@@ -55,15 +75,139 @@ python app.py
 | Bi-LSTM | 28.3% | 29.2% | 25.7% | 26.9% | 27.5% |
 | **wav2vec 2.0** | **64.6%** | **29.1%** | **62.5%** | **52.4%** | **52.2%** |
 
+![LOCO 各語料庫準確率](results/figures/10_loco_accuracy.png)
+
+所有模型跨語料庫都顯著下滑（CNN 58.6% → 29.2%，**-29.4%**；wav2vec 73.9% → 52.2%，**-21.7%**）。wav2vec 下滑幅度最小，顯示大規模預訓練帶來的通用語音表徵具備較強的跨域遷移能力——這正是本研究核心問題的答案。
+
 ---
 
-## 核心發現
+## 進一步分析：CREMA-D 跨語料庫為何特別低？
 
-1. **特徵表徵 > 模型架構：** SVM (49.2%) ≈ Bi-LSTM (49.4%)，兩者同用 MFCC 特徵時表現相近；改用 Mel-spectrogram，CNN 提升至 58.6%；改用 Pre-trained embedding，wav2vec 大幅躍升至 73.9%。特徵的選擇比模型架構影響更大。
+wav2vec 在 CREMA-D 上只有 29.1%，與其他語料庫落差明顯。比起直接歸因於 overfitting，本研究比較各語料庫的下滑幅度後，找到兩個結構性原因：
 
-2. **跨語料庫泛化是主要挑戰：** 所有模型在 LOCO 測試中準確率大幅下滑。CNN 從 58.6% 降至 29.2%（跌幅 ~30%）；即使是最強的 wav2vec 也從 73.9% 降至 52.2%（跌幅 ~22%），顯示預訓練特徵具備更好的跨域遷移能力。
+| 測試語料庫 | In-corpus → LOCO | 下滑 |
+|-----------|------------------|------|
+| RAVDESS | 73.9% → 64.6% | -9 |
+| TESS | 73.9% → 62.5% | -11 |
+| SAVEE | 73.9% → 52.4% | -22 |
+| **CREMA-D** | **73.9% → 29.1%** | **-45** |
 
-3. **說話者獨立評估至關重要：** 採用 StratifiedGroupKFold（group=speaker\_id）確保同一說話者不同時出現在訓練集與測試集，避免高估模型泛化能力。
+1. **訓練資料量縮減**：CREMA-D 佔全部資料 66%，當它作為測試集時，訓練資料從 11,318 筆驟降至 3,876 筆（剩 34%）。
+2. **domain shift 最大**：CREMA-D 為演員在錄音棚念單一句子，錄音風格與其他三個資料集差異最大。
+
+**結論：這是資料分布問題，不是模型過擬合。** 此區別會直接影響後續的模型設計決策。
+
+---
+
+## 資料與前處理
+
+四個公開英語語音情緒資料集，統一取自 Kaggle（[Shivam Burnwal 彙整版](https://www.kaggle.com/code/shivamburnwal/speech-emotion-recognition)）：
+
+| 資料集 | 原始機構 | 筆數 | 說話者 |
+|--------|----------|------|--------|
+| RAVDESS | 加拿大 Ryerson 大學 | 1,056 | 24 |
+| CREMA-D | 美國演員資料庫 | 7,442 | 91 |
+| TESS | 多倫多大學 | 2,400 | 2 |
+| SAVEE | 英國薩里大學 | 420 | 4 |
+| **合計** | | **11,318** | **121** |
+
+**情緒標籤統一化**：移除 calm 與 surprise（樣本數偏少、且非各資料集都有），保留六類：angry、disgust、fear、happy、neutral、sad。下圖可見保留的 6 類分布均衡，而被移除的兩類明顯偏少：
+
+![合併後整體情緒分布](results/figures/02_overall_emotion_distribution.png)
+
+資料的**不平衡與多樣性**正是跨語料庫研究的前提。值得注意的一個極端案例：TESS 僅 2 位說話者，卻各自貢獻約 1,400 筆（佔全資料約 21%），這對說話者獨立的分組是一個需要審慎處理的情況。
+
+![各資料集說話者樣本數分布](results/figures/04_speaker_sample_distribution.png)
+
+**前處理**：所有音訊統一重採樣至 16 kHz、轉單聲道、峰值正規化至 [-1, 1]。此階段刻意**不**做截斷／補零以保持可逆，截斷與補零延後至特徵萃取時依模型需求執行。
+
+---
+
+## 方法論細節
+
+### 三種特徵 × 六種方法
+
+| 特徵 | 維度 | 對應模型 |
+|------|------|----------|
+| MFCC 統計特徵 | 234D（mean/std/max/min/skew/kurt）| SVM / Random Forest / XGBoost |
+| MFCC 時序 | (94, 39) | Bi-LSTM + Attention |
+| Mel-spectrogram | (128, 94) | CNN（4 卷積塊）|
+| 原始波形 → wav2vec 2.0 | 48,000 取樣點（3 秒 @ 16 kHz）| Fine-tuning |
+
+控制變因的精神：**相同的 11,318 筆資料 × 相同的 StratifiedGroupKFold × 唯一改變的是特徵與模型。**
+
+### 模型架構
+
+- **傳統 ML**：SVM（RBF, C=1.0）、Random Forest（n=100）、XGBoost（n=200, lr=0.1），輸入皆為 234D MFCC 統計特徵。
+- **CNN**：4 個卷積塊（32→64→128→256）+ Global Average Pooling + 2 層分類器。
+- **Bi-LSTM**：2 層雙向 LSTM（hidden=128）+ Bahdanau Self-Attention + 2 層分類器。
+- **wav2vec 2.0**：`facebook/wav2vec2-base`（95M 參數）+ Projection Head + Softmax，端到端 fine-tuning。
+
+---
+
+## 可重現性與專案結構
+
+工程上刻意將**批次處理**與**互動驗證**分離：耗時的批次工作抽成可獨立執行、可中斷續跑的腳本；notebook 只負責驗證與視覺化。
+
+```
+SER_project/
+├── data/metadata.csv          # 主索引（11,318 筆，含特徵路徑）
+├── src/                       # 批次處理腳本（CPU）
+│   ├── audio_utils.py / data_utils.py / feature_utils.py / models.py
+│   ├── run_preprocessing.py       # 重採樣／正規化
+│   ├── run_feature_extraction.py  # MFCC / Mel-spectrogram
+│   ├── run_baseline_ml.py         # SVM / RF / XGBoost 訓練
+│   └── run_extract_embeddings.py  # DL 嵌入向量萃取
+├── notebooks/                 # 驗證、視覺化、與 GPU 訓練
+│   ├── 01_eda → 04_baseline_ml      # 分析與傳統 ML
+│   ├── 05_train_cnn → 07_train_wav2vec  # DL 訓練（Colab GPU）
+│   ├── 08_cross_corpus_eval         # LOCO 評估
+│   └── 09_embedding_analysis / 10_results_summary
+├── results/                   # 各模型結果 JSON + figures/
+├── demo/                      # 本地 Gradio Demo + 保險樣本
+└── hf_space/                  # Hugging Face Spaces 部署檔
+```
+
+> **分工說明**：深度學習訓練（CNN / Bi-LSTM / wav2vec）需要 GPU，在 Google Colab 的 notebook 上進行；其餘批次處理（前處理、特徵萃取、傳統 ML 訓練、embedding 萃取）在本地以 `src/run_*.py` 腳本執行。
+
+### 環境
+
+```bash
+python -m venv venv
+venv\Scripts\activate        # Windows
+pip install -r requirements.txt
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+---
+
+## 即時 Demo
+
+最快的方式是直接開啟線上版（免安裝）：
+
+**▶ https://huggingface.co/spaces/RaymondChendas/speech-emotion-recognition**
+
+支援上傳音訊或即時麥克風錄音，輸出情緒類別、各類信心分數、機率分布圖與 Mel-spectrogram。背後為 fine-tuned wav2vec 2.0（已公開於 [HF Hub](https://huggingface.co/RaymondChendas/wav2vec2-base-ser)）。
+
+本地執行：
+
+```bash
+cd demo && python app.py     # 開啟 http://127.0.0.1:7860
+```
+
+---
+
+## 限制與未來方向
+
+**限制**
+1. **英語資料集**：四個資料集均為英語，結論不可直接推論至中文或其他語言。
+2. **參數量不對等**：wav2vec（95M）遠大於 CNN（~1M）；本研究比較的是「特徵表徵方式」，而非「相同計算量下的效率」。
+3. **Embedding 視覺化的方法論限制**：NB09 的 embedding 視覺化採用 fold-1 checkpoint 對全資料萃取，約 80% 為訓練資料，cluster 品質可能被高估，主要用於模型間的相對比較。
+
+**未來方向**
+1. **Knowledge Distillation**：將 wav2vec 知識蒸餾至輕量模型，降低部署成本。
+2. **多語言擴展**：引入中文語音情緒資料集，測試跨語言遷移能力。
+3. **Out-of-fold Embedding**：以嚴格 OOF prediction 生成 embedding，消除 fold-1 方法論限制。
 
 ---
 
@@ -71,171 +215,16 @@ python app.py
 
 | 類別 | 工具 |
 |------|------|
-| 語言 | Python 3.10+ |
-| 深度學習 | PyTorch 2.x、HuggingFace Transformers |
+| 深度學習 | PyTorch、HuggingFace Transformers |
 | 音訊處理 | librosa、soundfile、audiomentations |
 | 傳統 ML | scikit-learn、XGBoost |
-| 視覺化 | Plotly（無 matplotlib） |
-| Demo | Gradio |
-| 降維 | UMAP |
-| 實驗管理 | Jupyter Notebook |
+| 視覺化 | Plotly |
+| Demo / 部署 | Gradio、HuggingFace Spaces |
 
----
+## 資料來源與授權
 
-## 專案結構
-
-```
-SER_project/
-├── data/
-│   ├── metadata.csv              # 主索引（11,318 筆，含特徵路徑）
-│   ├── raw/                      # 原始音訊（.gitignore 排除）
-│   ├── processed/audio_16k/      # 重採樣音訊（.gitignore 排除）
-│   ├── features/                 # MFCC / Mel-spectrogram（.gitignore 排除）
-│   └── embeddings/               # CNN / LSTM / wav2vec 嵌入向量（.gitignore 排除）
-│
-├── models/
-│   ├── checkpoints/              # 訓練好的模型權重（.gitignore 排除）
-│   └── (architecture defined in src/models.py)
-│
-├── notebooks/
-│   ├── 01_eda.ipynb              # 探索性資料分析
-│   ├── 02_preprocessing.ipynb   # 音訊前處理
-│   ├── 03_feature_extraction.ipynb
-│   ├── 04_baseline_ml.ipynb     # SVM / RF / XGBoost
-│   ├── 05_train_cnn.ipynb       # CNN 訓練
-│   ├── 06_train_lstm.ipynb      # Bi-LSTM 訓練
-│   ├── 07_train_wav2vec.ipynb   # wav2vec 2.0 微調
-│   ├── 08_cross_corpus_eval.ipynb  # LOCO 評估
-│   ├── 09_embedding_analysis.ipynb # Embedding 視覺化分析
-│   └── 10_results_summary.ipynb    # 結果總覽
-│
-├── src/
-│   ├── audio_utils.py            # 音訊載入、重採樣、正規化
-│   ├── data_utils.py             # Metadata 管理、K-Fold 分割
-│   ├── feature_utils.py          # MFCC、Mel-spectrogram 萃取
-│   ├── models.py                 # CNN、Bi-LSTM 架構定義
-│   ├── plot_config.py            # 統一 Plotly 配色與版面
-│   ├── run_preprocessing.py      # 批次音訊重採樣
-│   ├── run_feature_extraction.py # 批次特徵萃取
-│   ├── run_baseline_ml.py        # 批次訓練 SVM/RF/XGBoost
-│   └── run_extract_embeddings.py # 批次萃取 DL 嵌入向量
-│
-├── demo/
-│   ├── app.py                    # Gradio Demo 主程式
-│   ├── select_samples.py         # 挑選高信心度保險樣本
-│   └── samples/                  # 6 個預錄保險樣本（含於 repo）
-│
-├── results/
-│   ├── baseline_ml/              # SVM/RF/XGBoost 結果 JSON
-│   ├── cross_corpus/             # LOCO 結果 JSON（CNN/LSTM/wav2vec）
-│   ├── wav2vec_folds/            # wav2vec 各 fold 結果
-│   └── figures/                  # 圖表輸出（HTML + PNG）
-│
-├── requirements.txt
-└── README.md
-```
-
----
-
-## 快速開始
-
-### 1. 安裝相依套件
-
-```bash
-# 建立虛擬環境（建議）
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安裝套件
-pip install -r requirements.txt
-
-# PyTorch CPU 版本（本地端 Demo 用）
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-```
-
-### 2. 取得模型權重
-
-由於檔案過大（~370 MB），`models/checkpoints/wav2vec/wav2vec_fold1_best.pt` 未包含於本 repo。取得方式：
-
-- **目前：** 請聯絡作者（見 repo issue 或 email）索取 fold-1 best checkpoint
-- **未來計畫：** 上傳至 [HuggingFace Hub](https://huggingface.co/) 公開取用（規劃中）
-
-檔案取得後請放置到：`models/checkpoints/wav2vec/wav2vec_fold1_best.pt`
-
-### 3. 啟動 Demo
-
-```bash
-cd demo
-python app.py
-# 瀏覽器開啟 http://127.0.0.1:7860
-```
-
-### 4. 完整實驗複現
-
-完整實驗需下載原始資料集並依序執行 `notebooks/01` → `10`（部分訓練步驟需 GPU，建議在 Google Colab 執行；所有 notebook 皆已支援 Colab 與本地環境自動偵測）。
-
----
-
-## 資料集
-
-本專案所有四個資料集統一取自 Kaggle：[Speech Emotion Recognition by Shivam Burnwal](https://www.kaggle.com/code/shivamburnwal/speech-emotion-recognition)
-
-| 資料集 | 原始來源 | 筆數 | 說話者 |
-|--------|----------|------|--------|
-| RAVDESS | 加拿大 Ryerson 大學 | 1,056 | 24 |
-| CREMA-D | 美國演員資料庫 | 7,442 | 91 |
-| TESS | 多倫多大學 | 2,400 | 2 |
-| SAVEE | 英國薩里大學 | 420 | 4 |
-
-所有音訊統一重採樣至 16kHz、正規化至 [-1, 1]。
-
----
-
-## 方法論
-
-### 實驗設計
-
-- **情緒類別（6 類）：** angry、disgust、fear、happy、neutral、sad
-- **說話者獨立評估：** StratifiedGroupKFold（K=5，group=speaker\_id，stratify=emotion）
-- **跨語料庫評估：** Leave-One-Corpus-Out（LOCO）
-
-### 特徵萃取
-
-| 特徵 | 維度 | 用於 |
-|------|------|------|
-| MFCC 統計特徵 | 234D（均值/標準差） | SVM / RF / XGBoost |
-| MFCC 時序 | (94, 39) | Bi-LSTM |
-| Mel-spectrogram | (128, 94) | CNN |
-| wav2vec 2.0 embedding | 原始波形 → 預訓練特徵 | Fine-tuning |
-
-### 模型架構
-
-- **CNN：** 4 個卷積塊（32→64→128→256 filters）+ Global Average Pooling + 2 層分類器
-- **Bi-LSTM：** 2 層雙向 LSTM（hidden=128）+ Bahdanau Self-Attention + 2 層分類器
-- **wav2vec 2.0：** `facebook/wav2vec2-base`（95M 參數）+ Projection Head + Softmax 分類
-
----
-
-## 限制
-
-1. **Fold-1 Embedding 視覺化的方法論限制：** Embedding 分析採用 fold-1 best checkpoint 對全資料萃取，約 80% 樣本為該 fold 的訓練資料，可能使 cluster 品質有所膨脹。主要用於呈現三個模型間的相對差異。
-
-2. **英語資料集限制：** 四個資料集均為英語，結果不能直接推論至中文或其他語言的情緒辨識。
-
-3. **模型參數量不對等：** wav2vec 2.0（95M）遠大於 CNN（~1M）與 LSTM（~500K），比較的是「特徵表徵方式的遷移能力」而非「相同計算量下的效率」。
-
----
-
-## 未來方向
-
-1. **模型壓縮：** 透過 Knowledge Distillation 將 wav2vec 的知識蒸餾至輕量模型，降低部署成本
-2. **多語言擴展：** 引入中文語音情緒資料集，測試模型的跨語言遷移能力
-3. **Out-of-fold Embedding：** 採用嚴格的 out-of-fold prediction 產生 embedding，消除 fold-1 方法論限制
-
----
+本專案程式碼以 MIT 授權釋出。原始音訊資料版權屬各資料集原始機構；保險樣本取自 TESS（CC BY-NC 4.0），僅供非商業展示。因版權與檔案大小，原始音訊與部分中間檔不隨 repo 提供，可依 notebook 流程重建。
 
 ## 關於
 
-東吳大學「深度學習創新與應用」 課程期末專題
-
-> 本 repo 含完整實驗程式碼與 Gradio Demo；因版權限制，原始音訊資料與模型權重不隨 repo 提供。
+東吳大學「深度學習創新與應用」課程期末專題。

@@ -1,0 +1,13 @@
+# HF Spaces 用的相依套件。
+# 版本釘在「本地實測可動」的版本，避免 Space 解析到不同版本而壞掉。
+# 注意：gradio 不列在這裡，由 Space 的 README frontmatter「sdk_version」控制。
+# torch 用 CPU wheel（免費 Space 為 CPU），透過下方 extra-index 取得。
+
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+torch==2.10.0
+transformers==5.5.3
+librosa==0.11.0
+soundfile==0.13.1
+plotly==6.6.0
+numpy==2.4.3

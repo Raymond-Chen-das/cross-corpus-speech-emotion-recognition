@@ -11,6 +11,9 @@ data/embeddings/
 # --- 模型權重（過大，需另行下載）---
 models/checkpoints/
 
+# --- HF Spaces 部署：轉檔產生的本地模型（361MB，不進 repo）---
+hf_space/model_export/
+
 # --- 內部工作記錄（不公開）---
 docs/personal_notes.md
 docs/LOCAL_WORK_SUMMARY.md
