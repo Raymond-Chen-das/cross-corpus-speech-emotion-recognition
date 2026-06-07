@@ -99,6 +99,19 @@ wav2vec 在 CREMA-D 上只有 29.1%，與其他語料庫落差明顯。比起直
 
 ---
 
+## 嵌入空間視覺化：特徵的情緒可分性
+
+除了準確率，我們也用 t-SNE 把三個深度模型的嵌入空間降到二維，直觀觀察「不同特徵表徵，把六種情緒分得多開」。
+
+![三模型嵌入空間的 t-SNE（依情緒著色，每模型隨機取樣 6,000 點）](results/figures/12_tsne_by_emotion.png)
+
+- **wav2vec 2.0 的情緒群聚最明顯**（silhouette = 0.330）；CNN 與 Bi-LSTM 的嵌入近乎不可分（silhouette ≈ 0，分別為 -0.001 與 0.019）。預訓練特徵不只準確率高，連特徵空間本身都把情緒組織得更清楚，與量化結果一致。
+- **方法論誠實（重要）**：此處 embedding 取自各模型的 **fold-1 checkpoint 對全資料萃取**，其中約 80% 是模型訓練時已見過的樣本，因此是一張 **in-sample（訓練內）視覺化**——它反映的是模型對「已學習資料」的組織能力（擬合），而非對未見資料的泛化。
+- 這是**視覺化呈現方式的選擇，並非分類評估上的資料洩漏**。本研究所有準確率與 F1 都是以**說話者獨立交叉驗證在 held-out 上**取得；t-SNE 與 silhouette 僅作為直觀佐證，量化結論不依賴它們。
+- 因此上述 silhouette 屬**樂觀（in-sample）估計**，可能高於真實泛化分離度；更嚴謹的 out-of-fold 版本列於未來方向。
+
+---
+
 ## 資料與前處理
 
 四個公開英語語音情緒資料集，統一取自 Kaggle（[Shivam Burnwal 彙整版](https://www.kaggle.com/code/shivamburnwal/speech-emotion-recognition)）：
@@ -202,12 +215,12 @@ cd demo && python app.py     # 開啟 http://127.0.0.1:7860
 **限制**
 1. **英語資料集**：四個資料集均為英語，結論不可直接推論至中文或其他語言。
 2. **參數量不對等**：wav2vec（95M）遠大於 CNN（~1M）；本研究比較的是「特徵表徵方式」，而非「相同計算量下的效率」。
-3. **Embedding 視覺化的方法論限制**：NB09 的 embedding 視覺化採用 fold-1 checkpoint 對全資料萃取，約 80% 為訓練資料，cluster 品質可能被高估，主要用於模型間的相對比較。
+3. **嵌入視覺化為 in-sample 性質**：t-SNE 與 silhouette（NB09）以 fold-1 checkpoint 對全資料萃取，約 80% 為訓練資料，屬 in-sample 視覺化（反映擬合而非泛化），silhouette 屬樂觀估計。此為視覺化方式的選擇，**非分類評估的資料洩漏**——準確率與 F1 均取自說話者獨立 held-out（詳見上方〈嵌入空間視覺化〉）。
 
 **未來方向**
 1. **Knowledge Distillation**：將 wav2vec 知識蒸餾至輕量模型，降低部署成本。
 2. **多語言擴展**：引入中文語音情緒資料集，測試跨語言遷移能力。
-3. **Out-of-fold Embedding**：以嚴格 OOF prediction 生成 embedding，消除 fold-1 方法論限制。
+3. **Out-of-fold Embedding**：改用「未將該樣本納入訓練的折模型」生成 embedding，使 t-SNE 與 silhouette 反映真實泛化分離度（5 折 checkpoint 已保存，可直接執行）。
 
 ---
 
